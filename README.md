@@ -1,3 +1,7 @@
+# ⚠️ Important: Administrator Required
+
+**This application must be run as Administrator to use all features.** Some functionality, such as deleting system files, clearing Windows event logs, modifying registry entries (startup programs), and flushing DNS cache, requires elevated privileges. Please run this application with administrator rights for the best experience.
+
 # Temp Remover Revamped
 
 A modern, feature-rich Windows system cleaning and optimization application built with Flutter. This is a revamped version of the original Python "Temp Remover" application, remade in Flutter to demonstrate advanced Flutter development techniques.
