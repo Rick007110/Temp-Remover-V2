@@ -14,6 +14,8 @@ class BrowserCleaningPage extends StatefulWidget {
 class _BrowserCleaningPageState extends State<BrowserCleaningPage> {
   
   Map<String, int>? _cacheInfo;
+  Map<String, int>? _historyInfo;
+  Map<String, int>? _cookiesInfo;
   
   final Map<String, bool> _selectedBrowsers = {
     'Chrome': true,
@@ -39,10 +41,19 @@ class _BrowserCleaningPageState extends State<BrowserCleaningPage> {
     });
 
     try {
-      final caches = await BrowserCacheService.scanBrowserCaches();
+      final selectedBrowsers = _selectedBrowsers.entries
+          .where((e) => e.value)
+          .map((e) => e.key)
+          .toList();
+
+      final caches = await BrowserCacheService.scanBrowserCaches(selectedBrowsers);
+      final history = await BrowserCacheService.scanBrowserHistory(selectedBrowsers);
+      final cookies = await BrowserCacheService.scanBrowserCookies(selectedBrowsers);
 
       setState(() {
         _cacheInfo = caches;
+        _historyInfo = history;
+        _cookiesInfo = cookies;
         _isScanning = false;
         _statusMessage = null;
       });
@@ -101,11 +112,95 @@ class _BrowserCleaningPageState extends State<BrowserCleaningPage> {
   }
 
   Future<void> _clearHistory() async {
-    _showSnackBar('History clearing not yet implemented');
+    final selectedBrowsers = _selectedBrowsers.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    if (selectedBrowsers.isEmpty) {
+      _showSnackBar('Please select at least one browser');
+      return;
+    }
+
+    setState(() {
+      _isCleaning = true;
+      _statusMessage = 'Clearing browser history...';
+    });
+
+    try {
+      final result = await BrowserCacheService.clearBrowserHistory(selectedBrowsers);
+      final totalBytes = result.values.fold<int>(0, (sum, bytes) => sum + bytes);
+      
+      // Add to history
+      await CleaningHistoryManager.addHistoryEntry(
+        CleaningHistory(
+          timestamp: DateTime.now(),
+          operation: 'Browser History Cleanup',
+          filesDeleted: 0,
+          bytesDeleted: totalBytes,
+        ),
+      );
+      
+      setState(() {
+        _isCleaning = false;
+        _statusMessage = null;
+      });
+
+      _showSnackBar('Cleared ${_formatBytes(totalBytes)} of history');
+      await _scanBrowserData();
+    } catch (e) {
+      setState(() {
+        _isCleaning = false;
+        _statusMessage = null;
+      });
+      _showSnackBar('Error clearing history: $e');
+    }
   }
 
   Future<void> _clearCookies() async {
-    _showSnackBar('Cookie clearing not yet implemented');
+    final selectedBrowsers = _selectedBrowsers.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    if (selectedBrowsers.isEmpty) {
+      _showSnackBar('Please select at least one browser');
+      return;
+    }
+
+    setState(() {
+      _isCleaning = true;
+      _statusMessage = 'Clearing browser cookies...';
+    });
+
+    try {
+      final result = await BrowserCacheService.clearBrowserCookies(selectedBrowsers);
+      final totalBytes = result.values.fold<int>(0, (sum, bytes) => sum + bytes);
+      
+      // Add to history
+      await CleaningHistoryManager.addHistoryEntry(
+        CleaningHistory(
+          timestamp: DateTime.now(),
+          operation: 'Browser Cookies Cleanup',
+          filesDeleted: 0,
+          bytesDeleted: totalBytes,
+        ),
+      );
+      
+      setState(() {
+        _isCleaning = false;
+        _statusMessage = null;
+      });
+
+      _showSnackBar('Cleared ${_formatBytes(totalBytes)} of cookies');
+      await _scanBrowserData();
+    } catch (e) {
+      setState(() {
+        _isCleaning = false;
+        _statusMessage = null;
+      });
+      _showSnackBar('Error clearing cookies: $e');
+    }
   }
 
   void _showSnackBar(String message) {
@@ -180,6 +275,7 @@ class _BrowserCleaningPageState extends State<BrowserCleaningPage> {
                             setState(() {
                               _selectedBrowsers[browser] = selected;
                             });
+                            _scanBrowserData();
                           },
                         );
                       }).toList(),
@@ -210,14 +306,14 @@ class _BrowserCleaningPageState extends State<BrowserCleaningPage> {
                         ),
                         _buildDataCard(
                           'History Items',
-                          0,
+                          _getTotalBytes(_historyInfo),
                           Icons.history,
                           Colors.orange,
                           _clearHistory,
                         ),
                         _buildDataCard(
                           'Cookies',
-                          0,
+                          _getTotalBytes(_cookiesInfo),
                           Icons.cookie,
                           Colors.green,
                           _clearCookies,

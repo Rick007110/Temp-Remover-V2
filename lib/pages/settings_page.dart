@@ -1,9 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/windows11_theme.dart';
+import '../services/update_check_service.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _isCheckingForUpdates = false;
+  UpdateInfo? _updateInfo;
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _isCheckingForUpdates = true);
+    try {
+      final updateInfo = await UpdateCheckService.checkForUpdates();
+      setState(() => _updateInfo = updateInfo);
+      
+      if (updateInfo.isUpdateAvailable) {
+        _showUpdateDialog(updateInfo);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are using the latest version')),
+        );
+      }
+    } finally {
+      setState(() => _isCheckingForUpdates = false);
+    }
+  }
+
+  void _showUpdateDialog(UpdateInfo updateInfo) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Current version: ${updateInfo.currentVersion}'),
+              const SizedBox(height: 8),
+              Text('Latest version: ${updateInfo.latestVersion}'),
+              const SizedBox(height: 16),
+              Text(
+                'Release Notes:',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(updateInfo.releaseNotes),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _downloadUpdate(updateInfo.downloadUrl);
+            },
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadUpdate(String downloadUrl) async {
+    if (downloadUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No download available for Windows')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Opening GitHub releases page...')),
+    );
+    await UpdateCheckService.downloadUpdate(downloadUrl);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +111,66 @@ class SettingsPage extends StatelessWidget {
           // Theme Settings
           Card(
             child: Padding(
+             Update Section
+          Card(
+            child: Padding(
               padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Updates',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Check for the latest version and download updates from GitHub',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _isCheckingForUpdates ? null : _checkForUpdates,
+                        icon: _isCheckingForUpdates
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh),
+                        label: Text(_isCheckingForUpdates
+                            ? 'Checking...'
+                            : 'Check for Updates'),
+                      ),
+                      const SizedBox(width: 16),
+                      if (_updateInfo != null && !_updateInfo!.isUpdateAvailable)
+                        Text(
+                          'Version ${_updateInfo!.currentVersion} is up to date',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.green,
+                          ),
+                        ),
+                      if (_updateInfo != null && _updateInfo!.isUpdateAvailable)
+                        Text(
+                          'Update available: ${_updateInfo!.latestVersion}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

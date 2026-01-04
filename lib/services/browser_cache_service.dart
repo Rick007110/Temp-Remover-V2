@@ -77,19 +77,96 @@ class BrowserCacheService {
     };
   }
 
-  static Future<Map<String, int>> scanBrowserCaches() async {
+  static Future<Map<String, int>> scanBrowserCaches(List<String> browsers) async {
     Map<String, int> results = {};
     final cachePaths = getBrowserCachePaths();
 
-    for (var entry in cachePaths.entries) {
+    for (var browserName in browsers) {
       int totalSize = 0;
-      for (var cachePath in entry.value) {
+      final paths = cachePaths[browserName] ?? [];
+      for (var cachePath in paths) {
         final dir = Directory(cachePath);
         if (await dir.exists()) {
           totalSize += await _calculateDirectorySize(dir);
         }
       }
-      results[entry.key] = totalSize;
+      results[browserName] = totalSize;
+    }
+
+    return results;
+  }
+
+  static Future<Map<String, int>> scanBrowserHistory(List<String> browsers) async {
+    Map<String, int> results = {};
+    final historyPaths = getBrowserHistoryPaths();
+
+    for (var browserName in browsers) {
+      int totalSize = 0;
+      final paths = historyPaths[browserName] ?? [];
+      for (var historyPath in paths) {
+        if (browserName == 'Firefox') {
+          // Firefox stores history in profile folders
+          final profilesDir = Directory(historyPath);
+          if (await profilesDir.exists()) {
+            await for (var profile in profilesDir.list()) {
+              if (profile is Directory) {
+                final historyFile = File(path.join(profile.path, 'places.sqlite'));
+                if (await historyFile.exists()) {
+                  try {
+                    totalSize += await historyFile.length();
+                  } catch (e) {}
+                }
+              }
+            }
+          }
+        } else {
+          final file = File(historyPath);
+          if (await file.exists()) {
+            try {
+              totalSize += await file.length();
+            } catch (e) {}
+          }
+        }
+      }
+      results[browserName] = totalSize;
+    }
+
+    return results;
+  }
+
+  static Future<Map<String, int>> scanBrowserCookies(List<String> browsers) async {
+    Map<String, int> results = {};
+    final cookiePaths = getBrowserCookiePaths();
+
+    for (var browserName in browsers) {
+      int totalSize = 0;
+      final paths = cookiePaths[browserName] ?? [];
+      for (var cookiePath in paths) {
+        if (browserName == 'Firefox') {
+          // Firefox stores cookies in profile folders
+          final profilesDir = Directory(cookiePath);
+          if (await profilesDir.exists()) {
+            await for (var profile in profilesDir.list()) {
+              if (profile is Directory) {
+                final cookieFile = File(path.join(profile.path, 'cookies.sqlite'));
+                if (await cookieFile.exists()) {
+                  try {
+                    totalSize += await cookieFile.length();
+                  } catch (e) {}
+                }
+              }
+            }
+          }
+        } else {
+          final file = File(cookiePath);
+          if (await file.exists()) {
+            try {
+              totalSize += await file.length();
+            } catch (e) {}
+          }
+        }
+      }
+      results[browserName] = totalSize;
     }
 
     return results;
